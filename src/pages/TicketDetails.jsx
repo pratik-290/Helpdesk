@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Menu,
@@ -9,74 +9,41 @@ import {
   User,
   Settings,
   LogOut,
-  Send,
-  Paperclip,
   Clock3,
   CheckCircle2,
   CircleDot,
-  AlertCircle,
-  ChevronDown,
 } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import api from "../api/axios";
 
-const messages = [
-  {
-    id: 1,
-    name: "You",
-    role: "Customer",
-    message:
-      "I am unable to access my account. I tried resetting my password but I am still getting an error.",
-    time: "Today, 10:24 AM",
-    customer: true,
-  },
-  {
-    id: 2,
-    name: "Rahul Sharma",
-    role: "Support Agent",
-    message:
-      "Hi! Thanks for reaching out. I checked your account and everything looks fine from our side. Could you please try clearing your browser cache and logging in again?",
-    time: "Today, 10:42 AM",
-    customer: false,
-  },
-  {
-    id: 3,
-    name: "You",
-    role: "Customer",
-    message:
-      "I cleared the cache and tried again, but unfortunately the same error is still appearing.",
-    time: "Today, 11:05 AM",
-    customer: true,
-  },
-];
+function CustomerSidebar({
+  mobileOpen,
+  setMobileOpen,
+}) {
+  const navigate = useNavigate();
 
-const activities = [
-  {
-    title: "Ticket created",
-    time: "Today, 10:24 AM",
-    icon: CircleDot,
-  },
-  {
-    title: "Assigned to Rahul Sharma",
-    time: "Today, 10:31 AM",
-    icon: User,
-  },
-  {
-    title: "Agent replied",
-    time: "Today, 10:42 AM",
-    icon: Send,
-  },
-  {
-    title: "Customer replied",
-    time: "Today, 11:05 AM",
-    icon: MessageCircleIcon,
-  },
-];
+  const user =
+    JSON.parse(localStorage.getItem("user")) || {};
 
-function MessageCircleIcon({ size = 18 }) {
-  return <CircleDot size={size} />;
-}
+  const initials = user.name
+    ? user.name
+        .split(" ")
+        .map((word) => word[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "CU";
 
-function CustomerSidebar({ mobileOpen, setMobileOpen }) {
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
   return (
     <>
       {mobileOpen && (
@@ -88,17 +55,27 @@ function CustomerSidebar({ mobileOpen, setMobileOpen }) {
 
       <aside
         className={`fixed left-0 top-0 z-50 flex h-screen w-72 flex-col bg-slate-950 text-white transition-transform duration-300 lg:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
-          <Link to="/customer/dashboard" className="flex items-center gap-3">
+          <Link
+            to="/customer/dashboard"
+            className="flex items-center gap-3"
+          >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 font-bold text-white">
               H
             </div>
+
             <div>
-              <p className="text-lg font-bold tracking-tight">HelpDesk</p>
-              <p className="text-xs text-slate-400">Support Portal</p>
+              <p className="text-lg font-bold tracking-tight">
+                HelpDesk
+              </p>
+              <p className="text-xs text-slate-400">
+                Support Portal
+              </p>
             </div>
           </Link>
 
@@ -161,15 +138,24 @@ function CustomerSidebar({ mobileOpen, setMobileOpen }) {
         <div className="border-t border-white/10 p-4">
           <div className="mb-3 flex items-center gap-3 rounded-xl bg-white/5 p-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/15 text-sm font-bold text-orange-400">
-              PK
+              {initials}
             </div>
+
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">Pratik Khose</p>
-              <p className="truncate text-xs text-slate-500">Customer</p>
+              <p className="truncate text-sm font-semibold">
+                {user.name || "Customer"}
+              </p>
+
+              <p className="truncate text-xs text-slate-500">
+                {user.role || "CUSTOMER"}
+              </p>
             </div>
           </div>
 
-          <button className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400"
+          >
             <LogOut size={19} />
             Logout
           </button>
@@ -181,29 +167,127 @@ function CustomerSidebar({ mobileOpen, setMobileOpen }) {
 
 function TicketDetails() {
   const { id } = useParams();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messagesList, setMessagesList] = useState(messages);
 
-  const ticketId = id || "HD-1024";
+  const [mobileOpen, setMobileOpen] =
+    useState(false);
 
-  const handleSend = () => {
-    if (!message.trim()) return;
+  const [ticket, setTicket] = useState(null);
+  const [loading, setLoading] =
+    useState(true);
+  const [error, setError] = useState("");
+  const [closing, setClosing] =
+    useState(false);
 
-    setMessagesList((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        name: "You",
-        role: "Customer",
-        message: message.trim(),
-        time: "Just now",
-        customer: true,
-      },
-    ]);
+  useEffect(() => {
+    const fetchTicket = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    setMessage("");
+        const response = await api.get(
+          `/customer/tickets/${id}`
+        );
+
+        setTicket(response.data);
+      } catch (err) {
+        setError(
+          err.response?.data?.message ||
+            "Failed to load ticket"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTicket();
+  }, [id]);
+
+  const formatStatus = (status) => {
+    if (!status) return "";
+
+    return status
+      .toLowerCase()
+      .split("_")
+      .map(
+        (word) =>
+          word.charAt(0).toUpperCase() +
+          word.slice(1)
+      )
+      .join(" ");
   };
+
+  const formatDate = (date) => {
+    if (!date) return "-";
+
+    return new Date(date).toLocaleString();
+  };
+
+  const getStatusClass = (status) => {
+    if (status === "RESOLVED") {
+      return "bg-emerald-50 text-emerald-700";
+    }
+
+    if (status === "IN_PROGRESS") {
+      return "bg-blue-50 text-blue-700";
+    }
+
+    if (status === "ASSIGNED") {
+      return "bg-purple-50 text-purple-700";
+    }
+
+    if (status === "CLOSED") {
+      return "bg-slate-100 text-slate-600";
+    }
+
+    return "bg-orange-50 text-orange-700";
+  };
+
+  const handleCloseTicket = async () => {
+    try {
+      setClosing(true);
+      setError("");
+
+      const response = await api.patch(
+        `/customer/tickets/${id}/close`
+      );
+
+      setTicket(response.data);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to close ticket"
+      );
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-slate-500">
+          Loading ticket...
+        </p>
+      </div>
+    );
+  }
+
+  if (error && !ticket) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50">
+        <p className="font-medium text-red-500">
+          {error}
+        </p>
+
+        <Link
+          to="/customer/tickets"
+          className="text-sm font-semibold text-orange-600"
+        >
+          Back to My Tickets
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -229,8 +313,12 @@ function TicketDetails() {
               >
                 My Tickets
               </Link>
+
               <span>/</span>
-              <span className="font-medium text-slate-900">{ticketId}</span>
+
+              <span className="font-medium text-slate-900">
+                #{ticket.id}
+              </span>
             </div>
 
             <Link
@@ -238,7 +326,10 @@ function TicketDetails() {
               className="flex items-center gap-2 rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 sm:px-4"
             >
               <Plus size={17} />
-              <span className="hidden sm:inline">New Ticket</span>
+
+              <span className="hidden sm:inline">
+                New Ticket
+              </span>
             </Link>
           </div>
         </header>
@@ -257,179 +348,132 @@ function TicketDetails() {
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="text-sm font-semibold text-slate-500">
-                    #{ticketId}
+                    #{ticket.id}
                   </span>
 
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    In Progress
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                      ticket.status
+                    )}`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+
+                    {formatStatus(
+                      ticket.status
+                    )}
                   </span>
                 </div>
 
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                  Unable to access my account
+                  {ticket.title}
                 </h1>
 
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                  Having trouble signing in to my account even after resetting
-                  the password.
+                  {ticket.description}
                 </p>
               </div>
 
-              <button className="flex w-fit items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
-                <CheckCircle2 size={17} />
-                Close Ticket
-              </button>
+              {ticket.status === "RESOLVED" && (
+                <button
+                  onClick={handleCloseTicket}
+                  disabled={closing}
+                  className="flex w-fit items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                >
+                  <CheckCircle2 size={17} />
+
+                  {closing
+                    ? "Closing..."
+                    : "Close Ticket"}
+                </button>
+              )}
             </div>
+
+            {error && ticket && (
+              <p className="mt-4 text-sm font-medium text-red-500">
+                {error}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
             <section className="min-w-0">
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-slate-900">
+                    Ticket Description
+                  </h2>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Information provided when the
+                    ticket was created
+                  </p>
+                </div>
+
+                <div className="p-5 sm:p-6">
+                  <div className="flex gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-700">
+                      CU
+                    </div>
+
                     <div>
-                      <h2 className="font-semibold text-slate-900">
-                        Conversation
-                      </h2>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Communicate with our support team
+                      <p className="text-sm font-semibold text-slate-900">
+                        {ticket.customerName ||
+                          "Customer"}
+                      </p>
+
+                      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+                        {ticket.description}
+                      </p>
+
+                      <p className="mt-3 text-xs text-slate-400">
+                        {formatDate(
+                          ticket.createdAt
+                        )}
                       </p>
                     </div>
-
-                    <span className="hidden rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 sm:block">
-                      {messagesList.length} messages
-                    </span>
                   </div>
                 </div>
 
-                <div className="space-y-6 p-5 sm:p-6">
-                  {messagesList.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`flex gap-3 sm:gap-4 ${
-                        item.customer ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      {!item.customer && (
-                        <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white sm:flex">
-                          RS
-                        </div>
-                      )}
-
-                      <div
-                        className={`max-w-[88%] sm:max-w-[75%] ${
-                          item.customer ? "items-end" : "items-start"
-                        }`}
-                      >
-                        <div
-                          className={`mb-1.5 flex flex-wrap items-center gap-2 ${
-                            item.customer ? "justify-end" : "justify-start"
-                          }`}
-                        >
-                          <span className="text-sm font-semibold text-slate-900">
-                            {item.name}
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            {item.role}
-                          </span>
-                        </div>
-
-                        <div
-                          className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
-                            item.customer
-                              ? "rounded-tr-md bg-orange-500 text-white"
-                              : "rounded-tl-md bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {item.message}
-                        </div>
-
-                        <p
-                          className={`mt-1.5 text-[11px] text-slate-400 ${
-                            item.customer ? "text-right" : "text-left"
-                          }`}
-                        >
-                          {item.time}
-                        </p>
-                      </div>
-
-                      {item.customer && (
-                        <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-sm font-bold text-orange-700 sm:flex">
-                          PK
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t border-slate-200 bg-slate-50 p-4 sm:p-5">
-                  <div className="rounded-xl border border-slate-200 bg-white shadow-sm focus-within:border-orange-300 focus-within:ring-2 focus-within:ring-orange-100">
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      rows={4}
-                      placeholder="Write your reply..."
-                      className="w-full resize-none bg-transparent px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                    />
-
-                    <div className="flex items-center justify-between border-t border-slate-100 px-3 py-2">
-                      <button className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
-                        <Paperclip size={18} />
-                      </button>
-
-                      <button
-                        onClick={handleSend}
-                        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                      >
-                        Send Reply
-                        <Send size={16} />
-                      </button>
-                    </div>
-                  </div>
+                <div className="border-t border-slate-200 bg-slate-50 px-5 py-4">
+                  <p className="text-sm text-slate-500">
+                    Conversation replies will be
+                    available after the messaging
+                    module is connected.
+                  </p>
                 </div>
               </div>
             </section>
 
             <aside className="space-y-6">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-5 flex items-center justify-between">
-                  <h2 className="font-semibold text-slate-900">
-                    Ticket Details
-                  </h2>
-
-                  <button className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">
-                    <ChevronDown size={18} />
-                  </button>
-                </div>
+                <h2 className="mb-5 font-semibold text-slate-900">
+                  Ticket Details
+                </h2>
 
                 <div className="space-y-5">
                   <div>
                     <p className="mb-1 text-xs font-medium text-slate-400">
                       Status
                     </p>
-                    <span className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                      In Progress
-                    </span>
-                  </div>
 
-                  <div>
-                    <p className="mb-1 text-xs font-medium text-slate-400">
-                      Priority
-                    </p>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-red-600">
-                      <AlertCircle size={17} />
-                      High
-                    </div>
+                    <span
+                      className={`inline-flex rounded-lg px-3 py-2 text-sm font-semibold ${getStatusClass(
+                        ticket.status
+                      )}`}
+                    >
+                      {formatStatus(
+                        ticket.status
+                      )}
+                    </span>
                   </div>
 
                   <div>
                     <p className="mb-1 text-xs font-medium text-slate-400">
                       Category
                     </p>
+
                     <p className="text-sm font-semibold text-slate-800">
-                      Account & Login
+                      {ticket.category}
                     </p>
                   </div>
 
@@ -437,8 +481,11 @@ function TicketDetails() {
                     <p className="mb-1 text-xs font-medium text-slate-400">
                       Created
                     </p>
+
                     <p className="text-sm font-semibold text-slate-800">
-                      Sep 15, 2026
+                      {formatDate(
+                        ticket.createdAt
+                      )}
                     </p>
                   </div>
 
@@ -446,8 +493,11 @@ function TicketDetails() {
                     <p className="mb-1 text-xs font-medium text-slate-400">
                       Last Updated
                     </p>
+
                     <p className="text-sm font-semibold text-slate-800">
-                      Today, 11:05 AM
+                      {formatDate(
+                        ticket.updatedAt
+                      )}
                     </p>
                   </div>
                 </div>
@@ -458,59 +508,65 @@ function TicketDetails() {
                   Assigned Agent
                 </h2>
 
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
-                    RS
-                  </div>
+                {ticket.agentName ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
+                      {ticket.agentName
+                        .split(" ")
+                        .map(
+                          (word) =>
+                            word[0]
+                        )
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()}
+                    </div>
 
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      Rahul Sharma
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Support Agent
-                    </p>
-                  </div>
-                </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {ticket.agentName}
+                      </p>
 
-                <button className="mt-4 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                  View Agent Profile
-                </button>
+                      <p className="text-xs text-slate-500">
+                        Support Agent
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">
+                    No agent assigned yet.
+                  </p>
+                )}
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="mb-5 flex items-center gap-2">
-                  <Clock3 size={18} className="text-slate-500" />
+                  <Clock3
+                    size={18}
+                    className="text-slate-500"
+                  />
+
                   <h2 className="font-semibold text-slate-900">
                     Activity
                   </h2>
                 </div>
 
-                <div className="relative space-y-5 pl-1">
-                  {activities.map((activity, index) => {
-                    const Icon = activity.icon;
+                <div className="flex gap-3">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                    <CircleDot size={12} />
+                  </div>
 
-                    return (
-                      <div key={index} className="relative flex gap-3">
-                        {index !== activities.length - 1 && (
-                          <div className="absolute left-[9px] top-6 h-7 w-px bg-slate-200" />
-                        )}
+                  <div>
+                    <p className="text-xs font-medium text-slate-700">
+                      Ticket created
+                    </p>
 
-                        <div className="relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                          <Icon size={12} />
-                        </div>
-
-                        <div>
-                          <p className="text-xs font-medium text-slate-700">
-                            {activity.title}
-                          </p>
-                          <p className="mt-1 text-[11px] text-slate-400">
-                            {activity.time}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {formatDate(
+                        ticket.createdAt
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
             </aside>

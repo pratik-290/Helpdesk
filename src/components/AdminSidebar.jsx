@@ -4,13 +4,39 @@ import {
   Ticket,
   Settings,
   X,
+  LogOut,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 function AdminSidebar({ mobile, setMobile }) {
   const location = useLocation();
+  const navigate = useNavigate();
 
-  const isActive = (path) => location.pathname === path;
+  const user =
+    JSON.parse(localStorage.getItem("user")) || {};
+
+  const initials = user.name
+    ? user.name
+        .split(" ")
+        .map((word) => word[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "AD";
+
+  const isActive = (path) =>
+    location.pathname === path;
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    navigate("/login");
+  };
 
   const navItems = [
     {
@@ -46,7 +72,9 @@ function AdminSidebar({ mobile, setMobile }) {
 
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-slate-950 ${
-          mobile ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          mobile
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
         } transition-transform duration-300`}
       >
         <div className="flex h-16 items-center justify-between border-b border-slate-800 px-5">
@@ -94,12 +122,12 @@ function AdminSidebar({ mobile, setMobile }) {
         <div className="border-t border-slate-800 p-4">
           <div className="flex items-center gap-3 rounded-xl bg-slate-900 p-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 font-semibold text-white">
-              A
+              {initials}
             </div>
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white">
-                Admin User
+                {user.name || "Admin"}
               </p>
 
               <p className="truncate text-xs text-slate-500">
@@ -107,6 +135,14 @@ function AdminSidebar({ mobile, setMobile }) {
               </p>
             </div>
           </div>
+
+          <button
+            onClick={handleLogout}
+            className="mt-3 flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400"
+          >
+            <LogOut size={18} />
+            Logout
+          </button>
         </div>
       </aside>
     </>

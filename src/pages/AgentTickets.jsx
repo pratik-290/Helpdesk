@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -7,7 +7,6 @@ import {
   ListFilter,
   LogOut,
   Menu,
-  Plus,
   Search,
   Settings,
   Ticket,
@@ -15,125 +14,80 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import api from "../api/axios";
 
-const tickets = [
-  {
-    id: "HD-1024",
-    subject: "Unable to access my account",
-    customer: "Pratik Khose",
-    category: "Account & Login",
-    priority: "High",
-    status: "In Progress",
-    agent: "Rahul Sharma",
-    updated: "5 min ago",
-  },
-  {
-    id: "HD-1021",
-    subject: "Payment failed during checkout",
-    customer: "Aarav Mehta",
-    category: "Billing",
-    priority: "High",
-    status: "Open",
-    agent: "Unassigned",
-    updated: "18 min ago",
-  },
-  {
-    id: "HD-1018",
-    subject: "Cannot update profile information",
-    customer: "Sneha Patil",
-    category: "Account & Login",
-    priority: "Medium",
-    status: "In Progress",
-    agent: "Rahul Sharma",
-    updated: "32 min ago",
-  },
-  {
-    id: "HD-1015",
-    subject: "Application keeps loading",
-    customer: "Rohan Kulkarni",
-    category: "Technical",
-    priority: "Medium",
-    status: "Open",
-    agent: "Unassigned",
-    updated: "1 hour ago",
-  },
-  {
-    id: "HD-1011",
-    subject: "Need invoice for previous order",
-    customer: "Neha Joshi",
-    category: "Billing",
-    priority: "Low",
-    status: "Resolved",
-    agent: "Rahul Sharma",
-    updated: "2 hours ago",
-  },
-  {
-    id: "HD-1008",
-    subject: "Notification emails not received",
-    customer: "Aditya Shah",
-    category: "Technical",
-    priority: "Low",
-    status: "Resolved",
-    agent: "Rahul Sharma",
-    updated: "3 hours ago",
-  },
-  {
-    id: "HD-1005",
-    subject: "Unable to download invoice",
-    customer: "Kunal More",
-    category: "Billing",
-    priority: "Medium",
-    status: "Open",
-    agent: "Unassigned",
-    updated: "4 hours ago",
-  },
-  {
-    id: "HD-1001",
-    subject: "Two factor authentication issue",
-    customer: "Maya Deshmukh",
-    category: "Account & Login",
-    priority: "High",
-    status: "In Progress",
-    agent: "Rahul Sharma",
-    updated: "5 hours ago",
-  },
+const statusOptions = [
+  "ALL",
+  "OPEN",
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "RESOLVED",
 ];
 
-const statusOptions = ["All", "Open", "In Progress", "Resolved"];
-const priorityOptions = ["All", "High", "Medium", "Low"];
-const categoryOptions = [
-  "All",
-  "Account & Login",
-  "Billing",
-  "Technical",
-];
+function formatStatus(status) {
+  if (!status) return "";
+
+  return status
+    .toLowerCase()
+    .split("_")
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join(" ");
+}
+
+function formatDate(date) {
+  if (!date) return "-";
+
+  return new Date(date).toLocaleString();
+}
 
 function statusStyle(status) {
-  if (status === "Open") {
+  if (status === "OPEN") {
     return "bg-blue-50 text-blue-700";
   }
 
-  if (status === "In Progress") {
+  if (status === "ASSIGNED") {
+    return "bg-purple-50 text-purple-700";
+  }
+
+  if (status === "IN_PROGRESS") {
     return "bg-amber-50 text-amber-700";
   }
 
-  return "bg-emerald-50 text-emerald-700";
-}
-
-function priorityStyle(priority) {
-  if (priority === "High") {
-    return "text-red-600";
+  if (status === "RESOLVED") {
+    return "bg-emerald-50 text-emerald-700";
   }
 
-  if (priority === "Medium") {
-    return "text-amber-600";
-  }
-
-  return "text-slate-500";
+  return "bg-slate-100 text-slate-600";
 }
 
-function AgentSidebar({ mobileOpen, setMobileOpen }) {
+function AgentSidebar({
+  mobileOpen,
+  setMobileOpen,
+}) {
+  const navigate = useNavigate();
+
+  const user =
+    JSON.parse(localStorage.getItem("user")) || {};
+
+  const initials = user.name
+    ? user.name
+        .split(" ")
+        .map((word) => word[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "AG";
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
   return (
     <>
       {mobileOpen && (
@@ -145,18 +99,28 @@ function AgentSidebar({ mobileOpen, setMobileOpen }) {
 
       <aside
         className={`fixed left-0 top-0 z-50 flex h-screen w-72 flex-col bg-slate-950 text-white transition-transform duration-300 lg:translate-x-0 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          mobileOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-white/10 px-6">
-          <Link to="/agent/dashboard" className="flex items-center gap-3">
+          <Link
+            to="/agent/dashboard"
+            className="flex items-center gap-3"
+          >
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 font-bold">
               H
             </div>
 
             <div>
-              <p className="text-lg font-bold tracking-tight">HelpDesk</p>
-              <p className="text-xs text-slate-400">Agent Portal</p>
+              <p className="text-lg font-bold tracking-tight">
+                HelpDesk
+              </p>
+
+              <p className="text-xs text-slate-400">
+                Agent Portal
+              </p>
             </div>
           </Link>
 
@@ -187,11 +151,11 @@ function AgentSidebar({ mobileOpen, setMobileOpen }) {
               className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-3 text-sm font-medium text-white"
             >
               <Ticket size={19} />
-              All Tickets
+              Tickets
             </Link>
 
             <Link
-              to="/agent/tickets?status=assigned"
+              to="/agent/tickets"
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white"
             >
               <Users size={19} />
@@ -219,18 +183,24 @@ function AgentSidebar({ mobileOpen, setMobileOpen }) {
         <div className="border-t border-white/10 p-4">
           <div className="mb-3 flex items-center gap-3 rounded-xl bg-white/5 p-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/15 text-sm font-bold text-orange-400">
-              RS
+              {initials}
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">Rahul Sharma</p>
+              <p className="truncate text-sm font-semibold">
+                {user.name || "Agent"}
+              </p>
+
               <p className="truncate text-xs text-slate-500">
                 Support Agent
               </p>
             </div>
           </div>
 
-          <button className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400"
+          >
             <LogOut size={19} />
             Logout
           </button>
@@ -241,43 +211,193 @@ function AgentSidebar({ mobileOpen, setMobileOpen }) {
 }
 
 function AgentTickets() {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] =
+    useState(false);
+
+  const [tickets, setTickets] = useState([]);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("All");
-  const [priority, setPriority] = useState("All");
-  const [category, setCategory] = useState("All");
+  const [status, setStatus] = useState("ALL");
+  const [category, setCategory] = useState("ALL");
   const [page, setPage] = useState(1);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [actionLoading, setActionLoading] =
+    useState(null);
+
+  const [error, setError] = useState("");
+
+  const user =
+    JSON.parse(localStorage.getItem("user")) || {};
+
+  const initials = user.name
+    ? user.name
+        .split(" ")
+        .map((word) => word[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "AG";
+
+  const itemsPerPage = 6;
+
+  const fetchTickets = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const [openResponse, assignedResponse] =
+        await Promise.all([
+          api.get("/agent/tickets/open"),
+          api.get("/agent/tickets/assigned"),
+        ]);
+
+      const combined = [
+        ...openResponse.data,
+        ...assignedResponse.data,
+      ];
+
+      const uniqueTickets = Array.from(
+        new Map(
+          combined.map((ticket) => [
+            ticket.id,
+            ticket,
+          ])
+        ).values()
+      );
+
+      setTickets(uniqueTickets);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to load tickets"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  const assignTicket = async (ticketId) => {
+    try {
+      setActionLoading(ticketId);
+      setError("");
+
+      await api.post(
+        `/agent/tickets/${ticketId}/assign`
+      );
+
+      await fetchTickets();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to assign ticket"
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const updateStatus = async (
+    ticketId,
+    newStatus
+  ) => {
+    try {
+      setActionLoading(ticketId);
+      setError("");
+
+      await api.patch(
+        `/agent/tickets/${ticketId}/status`,
+        {
+          status: newStatus,
+        }
+      );
+
+      await fetchTickets();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Failed to update ticket"
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const categories = useMemo(() => {
+    const values = tickets
+      .map((ticket) => ticket.category)
+      .filter(Boolean);
+
+    return ["ALL", ...new Set(values)];
+  }, [tickets]);
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((ticket) => {
+      const id = String(ticket.id);
+
       const searchMatch =
-        ticket.id.toLowerCase().includes(search.toLowerCase()) ||
-        ticket.subject.toLowerCase().includes(search.toLowerCase()) ||
-        ticket.customer.toLowerCase().includes(search.toLowerCase());
+        id.includes(search) ||
+        ticket.title
+          ?.toLowerCase()
+          .includes(search.toLowerCase()) ||
+        ticket.customerName
+          ?.toLowerCase()
+          .includes(search.toLowerCase());
 
       const statusMatch =
-        status === "All" || ticket.status === status;
-
-      const priorityMatch =
-        priority === "All" || ticket.priority === priority;
+        status === "ALL" ||
+        ticket.status === status;
 
       const categoryMatch =
-        category === "All" || ticket.category === category;
+        category === "ALL" ||
+        ticket.category === category;
 
       return (
         searchMatch &&
         statusMatch &&
-        priorityMatch &&
         categoryMatch
       );
     });
-  }, [search, status, priority, category]);
+  }, [tickets, search, status, category]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      filteredTickets.length / itemsPerPage
+    )
+  );
+
+  const startIndex =
+    (page - 1) * itemsPerPage;
+
+  const currentTickets =
+    filteredTickets.slice(
+      startIndex,
+      startIndex + itemsPerPage
+    );
+
+  const openCount = tickets.filter(
+    (ticket) => ticket.status === "OPEN"
+  ).length;
+
+  const inProgressCount = tickets.filter(
+    (ticket) =>
+      ticket.status === "IN_PROGRESS"
+  ).length;
+
+  const resolvedCount = tickets.filter(
+    (ticket) => ticket.status === "RESOLVED"
+  ).length;
 
   const clearFilters = () => {
     setSearch("");
-    setStatus("All");
-    setPriority("All");
-    setCategory("All");
+    setStatus("ALL");
+    setCategory("ALL");
     setPage(1);
   };
 
@@ -292,7 +412,9 @@ function AgentTickets() {
         <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
             <button
-              onClick={() => setMobileOpen(true)}
+              onClick={() =>
+                setMobileOpen(true)
+              }
               className="rounded-xl border border-slate-200 p-2 text-slate-600 lg:hidden"
             >
               <Menu size={21} />
@@ -307,11 +429,12 @@ function AgentTickets() {
             <div className="flex items-center gap-2">
               <button className="relative rounded-xl border border-slate-200 p-2.5 text-slate-500 transition hover:bg-slate-50">
                 <Clock3 size={19} />
+
                 <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-orange-500" />
               </button>
 
               <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white sm:flex">
-                RS
+                {initials}
               </div>
             </div>
           </div>
@@ -325,11 +448,12 @@ function AgentTickets() {
               </p>
 
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                All Tickets
+                Agent Tickets
               </h1>
 
               <p className="mt-2 text-sm text-slate-500">
-                Search, filter and manage customer support requests.
+                Assign and manage customer support
+                tickets.
               </p>
             </div>
 
@@ -342,6 +466,12 @@ function AgentTickets() {
             </Link>
           </div>
 
+          {error && (
+            <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {error}
+            </div>
+          )}
+
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5 sm:p-6">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -351,7 +481,8 @@ function AgentTickets() {
                   </h2>
 
                   <p className="mt-1 text-xs text-slate-500">
-                    {filteredTickets.length} tickets matching your filters
+                    {filteredTickets.length} tickets
+                    matching your filters
                   </p>
                 </div>
 
@@ -363,7 +494,7 @@ function AgentTickets() {
                 </button>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_180px_190px]">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_190px_190px]">
                 <div className="relative sm:col-span-2 xl:col-span-1">
                   <Search
                     size={18}
@@ -376,7 +507,7 @@ function AgentTickets() {
                       setSearch(e.target.value);
                       setPage(1);
                     }}
-                    placeholder="Search ticket, subject or customer..."
+                    placeholder="Search ticket, title or customer..."
                     className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none transition focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100"
                   />
                 </div>
@@ -393,34 +524,24 @@ function AgentTickets() {
                       setStatus(e.target.value);
                       setPage(1);
                     }}
-                    className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-700 outline-none focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                    className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-700 outline-none"
                   >
-                    {statusOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option === "All"
-                          ? "All Status"
-                          : option}
-                      </option>
-                    ))}
+                    {statusOptions.map(
+                      (option) => (
+                        <option
+                          key={option}
+                          value={option}
+                        >
+                          {option === "ALL"
+                            ? "All Status"
+                            : formatStatus(
+                                option
+                              )}
+                        </option>
+                      )
+                    )}
                   </select>
                 </div>
-
-                <select
-                  value={priority}
-                  onChange={(e) => {
-                    setPriority(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100"
-                >
-                  {priorityOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === "All"
-                        ? "All Priority"
-                        : option}
-                    </option>
-                  ))}
-                </select>
 
                 <select
                   value={category}
@@ -428,259 +549,346 @@ function AgentTickets() {
                     setCategory(e.target.value);
                     setPage(1);
                   }}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100"
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none"
                 >
-                  {categoryOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option === "All"
-                        ? "All Categories"
-                        : option}
-                    </option>
-                  ))}
+                  {categories.map(
+                    (option) => (
+                      <option
+                        key={option}
+                        value={option}
+                      >
+                        {option === "ALL"
+                          ? "All Categories"
+                          : option}
+                      </option>
+                    )
+                  )}
                 </select>
               </div>
             </div>
 
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1100px]">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/70 text-left">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Ticket
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Customer
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Priority
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Assigned To
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Updated
-                    </th>
-                  </tr>
-                </thead>
+            {loading ? (
+              <div className="px-6 py-20 text-center text-sm text-slate-500">
+                Loading tickets...
+              </div>
+            ) : (
+              <>
+                <div className="hidden overflow-x-auto lg:block">
+                  <table className="w-full min-w-[1100px]">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/70 text-left">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-400">
+                          Ticket
+                        </th>
 
-                <tbody>
-                  {filteredTickets.map((ticket) => (
-                    <tr
-                      key={ticket.id}
-                      className="border-b border-slate-100 transition hover:bg-slate-50"
-                    >
-                      <td className="px-6 py-4">
-                        <Link
-                          to={`/customer/tickets/${ticket.id}`}
-                          className="group block"
-                        >
-                          <p className="text-xs font-semibold text-slate-400">
-                            {ticket.id}
-                          </p>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-400">
+                          Customer
+                        </th>
 
-                          <p className="mt-1 max-w-[300px] truncate text-sm font-semibold text-slate-800 group-hover:text-orange-600">
-                            {ticket.subject}
-                          </p>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-400">
+                          Status
+                        </th>
 
-                          <p className="mt-1 text-xs text-slate-400">
-                            {ticket.category}
-                          </p>
-                        </Link>
-                      </td>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-400">
+                          Assigned To
+                        </th>
 
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                            {ticket.customer
-                              .split(" ")
-                              .map((name) => name[0])
-                              .join("")}
+                        <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-400">
+                          Updated
+                        </th>
+
+                        <th className="px-6 py-4 text-xs font-semibold uppercase text-slate-400">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {currentTickets.map(
+                        (ticket) => (
+                          <tr
+                            key={ticket.id}
+                            className="border-b border-slate-100 hover:bg-slate-50"
+                          >
+                            <td className="px-6 py-4">
+                              <p className="text-xs font-semibold text-slate-400">
+                                #{ticket.id}
+                              </p>
+
+                              <p className="mt-1 max-w-[280px] truncate text-sm font-semibold text-slate-800">
+                                {ticket.title}
+                              </p>
+
+                              <p className="mt-1 text-xs text-slate-400">
+                                {ticket.category}
+                              </p>
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <p className="text-sm font-medium text-slate-700">
+                                {ticket.customerName}
+                              </p>
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyle(
+                                  ticket.status
+                                )}`}
+                              >
+                                {formatStatus(
+                                  ticket.status
+                                )}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-4 text-sm text-slate-700">
+                              {ticket.agentName ||
+                                "Unassigned"}
+                            </td>
+
+                            <td className="px-6 py-4 text-sm text-slate-500">
+                              {formatDate(
+                                ticket.updatedAt
+                              )}
+                            </td>
+
+                            <td className="px-6 py-4">
+                              {ticket.status ===
+                                "OPEN" && (
+                                <button
+                                  onClick={() =>
+                                    assignTicket(
+                                      ticket.id
+                                    )
+                                  }
+                                  disabled={
+                                    actionLoading ===
+                                    ticket.id
+                                  }
+                                  className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                                >
+                                  {actionLoading ===
+                                  ticket.id
+                                    ? "Assigning..."
+                                    : "Assign"}
+                                </button>
+                              )}
+
+                              {ticket.status ===
+                                "ASSIGNED" && (
+                                <button
+                                  onClick={() =>
+                                    updateStatus(
+                                      ticket.id,
+                                      "IN_PROGRESS"
+                                    )
+                                  }
+                                  disabled={
+                                    actionLoading ===
+                                    ticket.id
+                                  }
+                                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                                >
+                                  Start Work
+                                </button>
+                              )}
+
+                              {ticket.status ===
+                                "IN_PROGRESS" && (
+                                <button
+                                  onClick={() =>
+                                    updateStatus(
+                                      ticket.id,
+                                      "RESOLVED"
+                                    )
+                                  }
+                                  disabled={
+                                    actionLoading ===
+                                    ticket.id
+                                  }
+                                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                >
+                                  Resolve
+                                </button>
+                              )}
+
+                              {ticket.status ===
+                                "RESOLVED" && (
+                                <span className="text-xs font-semibold text-emerald-600">
+                                  Completed
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="space-y-3 p-4 lg:hidden">
+                  {currentTickets.map(
+                    (ticket) => (
+                      <div
+                        key={ticket.id}
+                        className="rounded-xl border border-slate-200 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400">
+                              #{ticket.id}
+                            </p>
+
+                            <h3 className="mt-1 text-sm font-semibold text-slate-900">
+                              {ticket.title}
+                            </h3>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              {
+                                ticket.customerName
+                              }
+                            </p>
                           </div>
 
-                          <span className="text-sm font-medium text-slate-700">
-                            {ticket.customer}
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusStyle(
+                              ticket.status
+                            )}`}
+                          >
+                            {formatStatus(
+                              ticket.status
+                            )}
                           </span>
                         </div>
-                      </td>
 
-                      <td className="px-6 py-4">
-                        <span
-                          className={`text-sm font-semibold ${priorityStyle(
-                            ticket.priority
-                          )}`}
-                        >
-                          {ticket.priority}
-                        </span>
-                      </td>
+                        <div className="mt-4 border-t border-slate-100 pt-3">
+                          <p className="text-xs text-slate-500">
+                            {ticket.category}
+                          </p>
 
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyle(
-                            ticket.status
-                          )}`}
-                        >
-                          {ticket.status}
-                        </span>
-                      </td>
+                          <div className="mt-3">
+                            {ticket.status ===
+                              "OPEN" && (
+                              <button
+                                onClick={() =>
+                                  assignTicket(
+                                    ticket.id
+                                  )
+                                }
+                                className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-semibold text-white"
+                              >
+                                Assign Ticket
+                              </button>
+                            )}
 
-                      <td className="px-6 py-4">
-                        {ticket.agent === "Unassigned" ? (
-                          <span className="text-sm font-medium text-orange-600">
-                            Unassigned
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
-                              RS
-                            </div>
+                            {ticket.status ===
+                              "ASSIGNED" && (
+                              <button
+                                onClick={() =>
+                                  updateStatus(
+                                    ticket.id,
+                                    "IN_PROGRESS"
+                                  )
+                                }
+                                className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white"
+                              >
+                                Start Work
+                              </button>
+                            )}
 
-                            <span className="text-sm text-slate-700">
-                              {ticket.agent}
-                            </span>
+                            {ticket.status ===
+                              "IN_PROGRESS" && (
+                              <button
+                                onClick={() =>
+                                  updateStatus(
+                                    ticket.id,
+                                    "RESOLVED"
+                                  )
+                                }
+                                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
+                              >
+                                Resolve
+                              </button>
+                            )}
                           </div>
-                        )}
-                      </td>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
 
-                      <td className="px-6 py-4 text-sm text-slate-500">
-                        {ticket.updated}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                {filteredTickets.length ===
+                  0 && (
+                  <div className="px-6 py-16 text-center">
+                    <Search
+                      size={22}
+                      className="mx-auto text-slate-400"
+                    />
 
-            <div className="space-y-3 p-4 lg:hidden">
-              {filteredTickets.map((ticket) => (
-                <Link
-                  key={ticket.id}
-                  to={`/customer/tickets/${ticket.id}`}
-                  className="block rounded-xl border border-slate-200 p-4 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-400">
-                        {ticket.id}
-                      </p>
-
-                      <h3 className="mt-1 text-sm font-semibold text-slate-900">
-                        {ticket.subject}
-                      </h3>
-
-                      <p className="mt-1 text-xs text-slate-500">
-                        {ticket.customer}
-                      </p>
-                    </div>
-
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusStyle(
-                        ticket.status
-                      )}`}
-                    >
-                      {ticket.status}
-                    </span>
+                    <p className="mt-4 text-sm font-semibold text-slate-700">
+                      No tickets found
+                    </p>
                   </div>
+                )}
 
-                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
-                    <div>
-                      <p className="text-[11px] text-slate-400">
-                        Priority
-                      </p>
+                {filteredTickets.length > 0 && (
+                  <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-slate-500">
+                      Showing{" "}
+                      {startIndex + 1}–{" "}
+                      {Math.min(
+                        startIndex +
+                          itemsPerPage,
+                        filteredTickets.length
+                      )}{" "}
+                      of{" "}
+                      {
+                        filteredTickets.length
+                      }{" "}
+                      tickets
+                    </p>
 
-                      <p
-                        className={`mt-1 text-xs font-semibold ${priorityStyle(
-                          ticket.priority
-                        )}`}
+                    <div className="flex gap-2">
+                      <button
+                        disabled={page === 1}
+                        onClick={() =>
+                          setPage(
+                            Math.max(
+                              1,
+                              page - 1
+                            )
+                          )
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold disabled:opacity-40"
                       >
-                        {ticket.priority}
-                      </p>
-                    </div>
+                        Previous
+                      </button>
 
-                    <div>
-                      <p className="text-[11px] text-slate-400">
-                        Assigned
-                      </p>
+                      <span className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">
+                        {page}
+                      </span>
 
-                      <p className="mt-1 truncate text-xs font-medium text-slate-700">
-                        {ticket.agent}
-                      </p>
+                      <button
+                        disabled={
+                          page >= totalPages
+                        }
+                        onClick={() =>
+                          setPage(
+                            Math.min(
+                              totalPages,
+                              page + 1
+                            )
+                          )
+                        }
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold disabled:opacity-40"
+                      >
+                        Next
+                      </button>
                     </div>
                   </div>
-
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-slate-400">
-                      {ticket.category}
-                    </span>
-
-                    <span className="text-xs text-slate-400">
-                      {ticket.updated}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-
-            {filteredTickets.length === 0 && (
-              <div className="px-6 py-16 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                  <Search size={22} />
-                </div>
-
-                <p className="mt-4 text-sm font-semibold text-slate-700">
-                  No tickets found
-                </p>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Try changing your search or filters.
-                </p>
-
-                <button
-                  onClick={clearFilters}
-                  className="mt-4 text-sm font-semibold text-orange-600 hover:text-orange-700"
-                >
-                  Clear filters
-                </button>
-              </div>
-            )}
-
-            {filteredTickets.length > 0 && (
-              <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <p className="text-xs text-slate-500">
-                  Showing{" "}
-                  <span className="font-semibold text-slate-700">
-                    1–{filteredTickets.length}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-semibold text-slate-700">
-                    {filteredTickets.length}
-                  </span>{" "}
-                  tickets
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page === 1}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Previous
-                  </button>
-
-                  <button className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">
-                    {page}
-                  </button>
-
-                  <button
-                    onClick={() => setPage(page + 1)}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
+                )}
+              </>
             )}
           </div>
 
@@ -692,8 +900,13 @@ function AgentTickets() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400">Open</p>
-                  <p className="text-xl font-bold text-slate-900">24</p>
+                  <p className="text-xs text-slate-400">
+                    Open
+                  </p>
+
+                  <p className="text-xl font-bold">
+                    {openCount}
+                  </p>
                 </div>
               </div>
             </div>
@@ -705,8 +918,13 @@ function AgentTickets() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400">In Progress</p>
-                  <p className="text-xl font-bold text-slate-900">17</p>
+                  <p className="text-xs text-slate-400">
+                    In Progress
+                  </p>
+
+                  <p className="text-xl font-bold">
+                    {inProgressCount}
+                  </p>
                 </div>
               </div>
             </div>
@@ -718,8 +936,13 @@ function AgentTickets() {
                 </div>
 
                 <div>
-                  <p className="text-xs text-slate-400">Resolved</p>
-                  <p className="text-xl font-bold text-slate-900">87</p>
+                  <p className="text-xs text-slate-400">
+                    Resolved
+                  </p>
+
+                  <p className="text-xl font-bold">
+                    {resolvedCount}
+                  </p>
                 </div>
               </div>
             </div>

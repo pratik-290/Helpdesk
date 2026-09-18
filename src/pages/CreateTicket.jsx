@@ -13,10 +13,58 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import api from "../api/axios";
 
 function CreateTicket() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const navigate = useNavigate();
+
+  const user = JSON.parse(localStorage.getItem("user")) || {};
+
+  const initials = user.name
+    ? user.name
+        .split(" ")
+        .map((word) => word[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "CU";
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await api.post("/customer/tickets", {
+        title,
+        description,
+        category,
+      });
+
+      navigate(`/customer/tickets/${response.data.id}`);
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Failed to create ticket"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -39,7 +87,9 @@ function CreateTicket() {
                 <CircleHelp size={20} />
               </div>
 
-              <span className="text-lg font-semibold">HelpDesk Pro</span>
+              <span className="text-lg font-semibold">
+                HelpDesk Pro
+              </span>
             </div>
 
             <button
@@ -98,20 +148,23 @@ function CreateTicket() {
           <div className="border-t border-slate-800 p-4">
             <div className="flex items-center gap-3 rounded-lg p-2">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
-                PK
+                {initials}
               </div>
 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">
-                  Pratik Khose
+                  {user.name || "Customer"}
                 </p>
 
                 <p className="truncate text-xs text-slate-500">
-                  Customer
+                  {user.role || "CUSTOMER"}
                 </p>
               </div>
 
-              <button className="text-slate-500 hover:text-white">
+              <button
+                onClick={handleLogout}
+                className="text-slate-500 hover:text-white"
+              >
                 <LogOut size={17} />
               </button>
             </div>
@@ -129,7 +182,10 @@ function CreateTicket() {
           </button>
 
           <div>
-            <p className="text-sm text-slate-500">Customer Portal</p>
+            <p className="text-sm text-slate-500">
+              Customer Portal
+            </p>
+
             <h1 className="text-lg font-semibold sm:text-xl">
               Create Ticket
             </h1>
@@ -156,7 +212,10 @@ function CreateTicket() {
             </p>
           </div>
 
-          <form className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-xl border border-slate-200 bg-white shadow-sm"
+          >
             <div className="border-b border-slate-200 p-5 sm:p-7">
               <div className="mb-6 flex items-center gap-3">
                 <div className="rounded-lg bg-orange-50 p-2.5 text-orange-600">
@@ -164,7 +223,10 @@ function CreateTicket() {
                 </div>
 
                 <div>
-                  <h3 className="font-semibold">Ticket information</h3>
+                  <h3 className="font-semibold">
+                    Ticket information
+                  </h3>
+
                   <p className="text-sm text-slate-500">
                     Provide details about your request.
                   </p>
@@ -179,7 +241,10 @@ function CreateTicket() {
 
                   <input
                     type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     placeholder="Briefly describe your issue"
+                    required
                     className="h-12 w-full rounded-lg border border-slate-300 px-4 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                   />
                 </div>
@@ -190,12 +255,27 @@ function CreateTicket() {
                       Category
                     </label>
 
-                    <select className="h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100">
-                      <option>Select category</option>
-                      <option>Account</option>
-                      <option>Billing</option>
-                      <option>Technical</option>
-                      <option>General</option>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      required
+                      className="h-12 w-full rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                    >
+                      <option value="">
+                        Select category
+                      </option>
+                      <option value="Account">
+                        Account
+                      </option>
+                      <option value="Billing">
+                        Billing
+                      </option>
+                      <option value="Technical">
+                        Technical
+                      </option>
+                      <option value="General">
+                        General
+                      </option>
                     </select>
                   </div>
 
@@ -220,7 +300,10 @@ function CreateTicket() {
 
                   <textarea
                     rows="7"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                     placeholder="Describe your issue in detail..."
+                    required
                     className="w-full resize-none rounded-lg border border-slate-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                   />
                 </div>
@@ -243,9 +326,18 @@ function CreateTicket() {
                       PNG, JPG or PDF up to 10MB
                     </p>
 
-                    <input type="file" className="hidden" />
+                    <input
+                      type="file"
+                      className="hidden"
+                    />
                   </label>
                 </div>
+
+                {error && (
+                  <p className="text-sm font-medium text-red-500">
+                    {error}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -257,12 +349,13 @@ function CreateTicket() {
                 Cancel
               </Link>
 
-              <Link to="/customer/tickets/HD-1025"
+              <button
                 type="submit"
-                className="flex h-11 items-center justify-center rounded-lg bg-orange-500 px-6 text-sm font-semibold text-white transition hover:bg-orange-600"
+                disabled={loading}
+                className="flex h-11 items-center justify-center rounded-lg bg-orange-500 px-6 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Submit Ticket
-              </Link>
+                {loading ? "Submitting..." : "Submit Ticket"}
+              </button>
             </div>
           </form>
         </main>

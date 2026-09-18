@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   ChevronDown,
@@ -15,72 +15,157 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import api from "../api/axios";
 
-const tickets = [
-  {
-    id: "#HD-1048",
-    title: "Unable to access my account",
-    category: "Account",
-    status: "In Progress",
-    priority: "High",
-    updated: "12 min ago",
-  },
-  {
-    id: "#HD-1045",
-    title: "Payment was charged twice",
-    category: "Billing",
-    status: "Open",
-    priority: "Medium",
-    updated: "1 hour ago",
-  },
-  {
-    id: "#HD-1039",
-    title: "Need help changing email address",
-    category: "Account",
-    status: "Resolved",
-    priority: "Low",
-    updated: "Yesterday",
-  },
-  {
-    id: "#HD-1032",
-    title: "Application keeps loading",
-    category: "Technical",
-    status: "Closed",
-    priority: "Medium",
-    updated: "2 days ago",
-  },
-];
+function formatStatus(status) {
+  if (!status) return "";
 
-const stats = [
-  {
-    title: "Total Tickets",
-    value: "24",
-    change: "+12%",
-    icon: Ticket,
-  },
-  {
-    title: "Open Tickets",
-    value: "5",
-    change: "2 new",
-    icon: FileText,
-  },
-  {
-    title: "In Progress",
-    value: "3",
-    change: "1 updated",
-    icon: Clock3,
-  },
-  {
-    title: "Resolved",
-    value: "16",
-    change: "+4 this month",
-    icon: CircleHelp,
-  },
-];
+  return status
+    .toLowerCase()
+    .split("_")
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    .join(" ");
+}
+
+function formatDate(date) {
+  if (!date) return "-";
+
+  return new Date(date).toLocaleString();
+}
+
+function getStatusClass(status) {
+  if (status === "RESOLVED") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "IN_PROGRESS") {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  if (status === "ASSIGNED") {
+    return "bg-purple-50 text-purple-700";
+  }
+
+  if (status === "CLOSED") {
+    return "bg-slate-100 text-slate-600";
+  }
+
+  return "bg-orange-50 text-orange-700";
+}
 
 function CustomerDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const navigate = useNavigate();
+
+  const user =
+    JSON.parse(localStorage.getItem("user")) || {};
+
+  const initials = user.name
+    ? user.name
+        .split(" ")
+        .map((word) => word[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "CU";
+
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await api.get(
+          "/customer/tickets"
+        );
+
+        setTickets(response.data);
+      } catch (err) {
+        setError(
+          err.response?.data?.message ||
+            "Failed to load dashboard"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTickets();
+  }, []);
+
+  const totalTickets = tickets.length;
+
+  const openTickets = tickets.filter(
+    (ticket) => ticket.status === "OPEN"
+  ).length;
+
+  const inProgressTickets = tickets.filter(
+    (ticket) => ticket.status === "IN_PROGRESS"
+  ).length;
+
+  const resolvedTickets = tickets.filter(
+    (ticket) => ticket.status === "RESOLVED"
+  ).length;
+
+  const recentTickets = useMemo(() => {
+    return [...tickets]
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt) -
+          new Date(a.updatedAt)
+      )
+      .slice(0, 4);
+  }, [tickets]);
+
+  const stats = [
+    {
+      title: "Total Tickets",
+      value: totalTickets,
+      text: "All support requests",
+      icon: Ticket,
+    },
+    {
+      title: "Open Tickets",
+      value: openTickets,
+      text: "Waiting for support",
+      icon: FileText,
+    },
+    {
+      title: "In Progress",
+      value: inProgressTickets,
+      text: "Currently being handled",
+      icon: Clock3,
+    },
+    {
+      title: "Resolved",
+      value: resolvedTickets,
+      text: "Issues resolved",
+      icon: CircleHelp,
+    },
+  ];
+
+  const today = new Date().toLocaleDateString(
+    "en-US",
+    {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    }
+  );
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -93,50 +178,65 @@ function CustomerDashboard() {
 
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 text-white transform transition-transform duration-300 lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          sidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
         }`}
       >
         <div className="flex h-full flex-col">
-          <div className="flex h-20 items-center justify-between px-6 border-b border-slate-800">
+          <div className="flex h-20 items-center justify-between border-b border-slate-800 px-6">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500">
                 <CircleHelp size={20} />
               </div>
 
-              <span className="text-lg font-semibold">HelpDesk Pro</span>
+              <span className="text-lg font-semibold">
+                HelpDesk Pro
+              </span>
             </div>
 
             <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden text-slate-400 hover:text-white"
+              onClick={() =>
+                setSidebarOpen(false)
+              }
+              className="text-slate-400 hover:text-white lg:hidden"
             >
               <X size={22} />
             </button>
           </div>
 
           <nav className="flex-1 px-4 py-6">
-            <p className="px-3 mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Workspace
             </p>
 
             <div className="space-y-1">
-              <button className="flex w-full items-center gap-3 rounded-lg bg-slate-800 px-3 py-2.5 text-sm font-medium text-white">
+              <Link
+                to="/customer/dashboard"
+                className="flex w-full items-center gap-3 rounded-lg bg-slate-800 px-3 py-2.5 text-sm font-medium text-white"
+              >
                 <Home size={18} />
                 Dashboard
-              </button>
+              </Link>
 
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 hover:bg-slate-900 hover:text-white">
+              <Link
+                to="/customer/tickets"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 hover:bg-slate-900 hover:text-white"
+              >
                 <Ticket size={18} />
                 My Tickets
-              </button>
+              </Link>
 
-              <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 hover:bg-slate-900 hover:text-white">
+              <Link
+                to="/customer/tickets/create"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 hover:bg-slate-900 hover:text-white"
+              >
                 <Plus size={18} />
                 Create Ticket
-              </button>
+              </Link>
             </div>
 
-            <p className="px-3 mb-3 mt-8 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <p className="mb-3 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Account
             </p>
 
@@ -156,19 +256,23 @@ function CustomerDashboard() {
           <div className="border-t border-slate-800 p-4">
             <div className="flex items-center gap-3 rounded-lg p-2">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
-                PK
+                {initials}
               </div>
 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">
-                  Pratik Khose
+                  {user.name || "Customer"}
                 </p>
+
                 <p className="truncate text-xs text-slate-500">
                   Customer
                 </p>
               </div>
 
-              <button className="text-slate-500 hover:text-white">
+              <button
+                onClick={handleLogout}
+                className="text-slate-500 hover:text-white"
+              >
                 <LogOut size={17} />
               </button>
             </div>
@@ -180,14 +284,19 @@ function CustomerDashboard() {
         <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setSidebarOpen(true)}
+              onClick={() =>
+                setSidebarOpen(true)
+              }
               className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
             >
               <Menu size={22} />
             </button>
 
             <div>
-              <p className="text-sm text-slate-500">Customer Portal</p>
+              <p className="text-sm text-slate-500">
+                Customer Portal
+              </p>
+
               <h1 className="text-lg font-semibold sm:text-xl">
                 Dashboard
               </h1>
@@ -201,17 +310,19 @@ function CustomerDashboard() {
 
             <button className="relative rounded-lg border border-slate-200 p-2.5 text-slate-500 hover:bg-slate-50">
               <Bell size={19} />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-orange-500" />
             </button>
 
             <div className="hidden h-8 w-px bg-slate-200 sm:block" />
 
             <button className="hidden items-center gap-2 sm:flex">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-sm font-semibold text-orange-700">
-                PK
+                {initials}
               </div>
 
-              <ChevronDown size={16} className="text-slate-400" />
+              <ChevronDown
+                size={16}
+                className="text-slate-400"
+              />
             </button>
           </div>
         </header>
@@ -219,20 +330,34 @@ function CustomerDashboard() {
         <main className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
           <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm text-slate-500">Tuesday, September 15</p>
+              <p className="text-sm text-slate-500">
+                {today}
+              </p>
+
               <h2 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
-                Good evening, Pratik
+                Welcome, {user.name || "Customer"}
               </h2>
+
               <p className="mt-2 text-sm text-slate-500 sm:text-base">
-                Here's what's happening with your support requests.
+                Here's what's happening with your
+                support requests.
               </p>
             </div>
 
-            <Link to="/customer/tickets/create" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-5 text-sm font-semibold text-white transition hover:bg-orange-600 sm:w-auto">
+            <Link
+              to="/customer/tickets/create"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-5 text-sm font-semibold text-white transition hover:bg-orange-600 sm:w-auto"
+            >
               <Plus size={18} />
               New Ticket
             </Link>
           </div>
+
+          {error && (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {error}
+            </div>
+          )}
 
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {stats.map((stat) => {
@@ -248,8 +373,11 @@ function CustomerDashboard() {
                       <p className="text-sm font-medium text-slate-500">
                         {stat.title}
                       </p>
+
                       <p className="mt-2 text-3xl font-bold tracking-tight">
-                        {stat.value}
+                        {loading
+                          ? "-"
+                          : stat.value}
                       </p>
                     </div>
 
@@ -259,7 +387,7 @@ function CustomerDashboard() {
                   </div>
 
                   <p className="mt-4 text-xs font-medium text-slate-500">
-                    {stat.change}
+                    {stat.text}
                   </p>
                 </div>
               );
@@ -269,147 +397,167 @@ function CustomerDashboard() {
           <section className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-col gap-4 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
               <div>
-                <h3 className="text-lg font-semibold">Recent Tickets</h3>
+                <h3 className="text-lg font-semibold">
+                  Recent Tickets
+                </h3>
+
                 <p className="mt-1 text-sm text-slate-500">
                   Your latest support requests
                 </p>
               </div>
 
-              <button className="text-left text-sm font-semibold text-orange-600 hover:text-orange-700 sm:text-right">
+              <Link
+                to="/customer/tickets"
+                className="text-left text-sm font-semibold text-orange-600 hover:text-orange-700 sm:text-right"
+              >
                 View all tickets
-              </button>
+              </Link>
             </div>
 
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[760px]">
-                <thead>
-                  <tr className="border-b border-slate-100 text-left">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Ticket
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Category
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Priority
-                    </th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Updated
-                    </th>
-                  </tr>
-                </thead>
+            {loading ? (
+              <div className="p-10 text-center text-sm text-slate-500">
+                Loading tickets...
+              </div>
+            ) : recentTickets.length === 0 ? (
+              <div className="p-10 text-center">
+                <p className="text-sm text-slate-500">
+                  No tickets yet.
+                </p>
 
-                <tbody>
-                  {tickets.map((ticket) => (
-                    <tr
-                      key={ticket.id}
-                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
-                    >
-                      <td className="px-6 py-5">
-                        <div>
-                          <p className="text-xs font-medium text-slate-400">
-                            {ticket.id}
-                          </p>
-                          <p className="mt-1 font-medium text-slate-800">
-                            {ticket.title}
-                          </p>
-                        </div>
-                      </td>
+                <Link
+                  to="/customer/tickets/create"
+                  className="mt-3 inline-block text-sm font-semibold text-orange-600"
+                >
+                  Create your first ticket
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[700px]">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-left">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Ticket
+                        </th>
 
-                      <td className="px-6 py-5 text-sm text-slate-600">
-                        {ticket.category}
-                      </td>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Category
+                        </th>
 
-                      <td className="px-6 py-5">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                            ticket.status === "Resolved"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : ticket.status === "In Progress"
-                              ? "bg-blue-50 text-blue-700"
-                              : ticket.status === "Closed"
-                              ? "bg-slate-100 text-slate-600"
-                              : "bg-orange-50 text-orange-700"
-                          }`}
-                        >
-                          {ticket.status}
-                        </span>
-                      </td>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Status
+                        </th>
 
-                      <td className="px-6 py-5">
-                        <span
-                          className={`text-sm font-medium ${
-                            ticket.priority === "High"
-                              ? "text-red-600"
-                              : ticket.priority === "Medium"
-                              ? "text-amber-600"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          {ticket.priority}
-                        </span>
-                      </td>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Updated
+                        </th>
+                      </tr>
+                    </thead>
 
-                      <td className="px-6 py-5 text-sm text-slate-500">
-                        {ticket.updated}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                    <tbody>
+                      {recentTickets.map(
+                        (ticket) => (
+                          <tr
+                            key={ticket.id}
+                            onClick={() =>
+                              navigate(
+                                `/customer/tickets/${ticket.id}`
+                              )
+                            }
+                            className="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                          >
+                            <td className="px-6 py-5">
+                              <p className="text-xs font-medium text-slate-400">
+                                #{ticket.id}
+                              </p>
 
-            <div className="divide-y divide-slate-100 md:hidden">
-              {tickets.map((ticket) => (
-                <div key={ticket.id} className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-slate-400">
-                        {ticket.id}
-                      </p>
-                      <h4 className="mt-1 text-sm font-semibold text-slate-800">
-                        {ticket.title}
-                      </h4>
-                    </div>
+                              <p className="mt-1 font-medium text-slate-800">
+                                {ticket.title}
+                              </p>
+                            </td>
 
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        ticket.status === "Resolved"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : ticket.status === "In Progress"
-                          ? "bg-blue-50 text-blue-700"
-                          : ticket.status === "Closed"
-                          ? "bg-slate-100 text-slate-600"
-                          : "bg-orange-50 text-orange-700"
-                      }`}
-                    >
-                      {ticket.status}
-                    </span>
-                  </div>
+                            <td className="px-6 py-5 text-sm text-slate-600">
+                              {ticket.category}
+                            </td>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-                    <span>{ticket.category}</span>
-                    <span>•</span>
-                    <span
-                      className={`font-medium ${
-                        ticket.priority === "High"
-                          ? "text-red-600"
-                          : ticket.priority === "Medium"
-                          ? "text-amber-600"
-                          : "text-slate-500"
-                      }`}
-                    >
-                      {ticket.priority}
-                    </span>
-                    <span>•</span>
-                    <span>{ticket.updated}</span>
-                  </div>
+                            <td className="px-6 py-5">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(
+                                  ticket.status
+                                )}`}
+                              >
+                                {formatStatus(
+                                  ticket.status
+                                )}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-5 text-sm text-slate-500">
+                              {formatDate(
+                                ticket.updatedAt
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              ))}
-            </div>
+
+                <div className="divide-y divide-slate-100 md:hidden">
+                  {recentTickets.map(
+                    (ticket) => (
+                      <div
+                        key={ticket.id}
+                        onClick={() =>
+                          navigate(
+                            `/customer/tickets/${ticket.id}`
+                          )
+                        }
+                        className="cursor-pointer p-5"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-slate-400">
+                              #{ticket.id}
+                            </p>
+
+                            <h4 className="mt-1 text-sm font-semibold text-slate-800">
+                              {ticket.title}
+                            </h4>
+                          </div>
+
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(
+                              ticket.status
+                            )}`}
+                          >
+                            {formatStatus(
+                              ticket.status
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+                          <span>
+                            {ticket.category}
+                          </span>
+
+                          <span>•</span>
+
+                          <span>
+                            {formatDate(
+                              ticket.updatedAt
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              </>
+            )}
           </section>
 
           <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -420,15 +568,21 @@ function CustomerDashboard() {
                 </div>
 
                 <div>
-                  <h3 className="font-semibold">Need more help?</h3>
+                  <h3 className="font-semibold">
+                    Need more help?
+                  </h3>
+
                   <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Browse our knowledge base for quick answers to common
-                    questions.
+                    Track your support requests and
+                    their current status.
                   </p>
 
-                  <button className="mt-4 text-sm font-semibold text-orange-600 hover:text-orange-700">
-                    Browse knowledge base →
-                  </button>
+                  <Link
+                    to="/customer/tickets"
+                    className="mt-4 inline-block text-sm font-semibold text-orange-600 hover:text-orange-700"
+                  >
+                    View tickets →
+                  </Link>
                 </div>
               </div>
             </div>
@@ -440,13 +594,19 @@ function CustomerDashboard() {
                 </div>
 
                 <div>
-                  <h3 className="font-semibold">Have an issue?</h3>
+                  <h3 className="font-semibold">
+                    Have an issue?
+                  </h3>
+
                   <p className="mt-1 text-sm leading-6 text-slate-400">
-                    Create a new support ticket and our team will get back to
-                    you.
+                    Create a new support ticket and
+                    our team will get back to you.
                   </p>
 
-                  <Link to="/customer/tickets/create" className="mt-4 text-sm font-semibold text-white hover:text-orange-300">
+                  <Link
+                    to="/customer/tickets/create"
+                    className="mt-4 inline-block text-sm font-semibold text-white hover:text-orange-300"
+                  >
                     Create a ticket →
                   </Link>
                 </div>

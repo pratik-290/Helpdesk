@@ -1,10 +1,56 @@
 import { useState } from "react";
 import { Eye, EyeOff, Headphones } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import api from "../api/axios";
 
 function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const navigate = useNavigate();
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await api.post("/users", {
+        name,
+        email,
+        password,
+      });
+
+      setSuccess("Account created successfully");
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 1000);
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Registration failed"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-8">
@@ -63,7 +109,10 @@ function Register() {
               </p>
             </div>
 
-            <form className="space-y-5">
+            <form
+              onSubmit={handleRegister}
+              className="space-y-5"
+            >
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Full name
@@ -71,7 +120,10 @@ function Register() {
 
                 <input
                   type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="Enter your full name"
+                  required
                   className="w-full h-12 px-4 rounded-lg border border-slate-300 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               </div>
@@ -83,7 +135,10 @@ function Register() {
 
                 <input
                   type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
+                  required
                   className="w-full h-12 px-4 rounded-lg border border-slate-300 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                 />
               </div>
@@ -95,8 +150,12 @@ function Register() {
 
                 <div className="relative">
                   <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     type={showPassword ? "text" : "password"}
                     placeholder="Create a password"
+                    required
+                    minLength={6}
                     className="w-full h-12 px-4 pr-12 rounded-lg border border-slate-300 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                   />
 
@@ -105,7 +164,11 @@ function Register() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {showPassword ? (
+                      <EyeOff size={20} />
+                    ) : (
+                      <Eye size={20} />
+                    )}
                   </button>
                 </div>
               </div>
@@ -117,8 +180,11 @@ function Register() {
 
                 <div className="relative">
                   <input
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder="Confirm your password"
+                    required
                     className="w-full h-12 px-4 pr-12 rounded-lg border border-slate-300 outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
                   />
 
@@ -142,6 +208,7 @@ function Register() {
                 <input
                   type="checkbox"
                   id="terms"
+                  required
                   className="w-4 h-4 mt-0.5 accent-orange-500"
                 />
 
@@ -153,11 +220,26 @@ function Register() {
                 </label>
               </div>
 
+              {error && (
+                <p className="text-sm text-red-500">
+                  {error}
+                </p>
+              )}
+
+              {success && (
+                <p className="text-sm text-green-600">
+                  {success}
+                </p>
+              )}
+
               <button
                 type="submit"
-                className="w-full h-12 rounded-lg bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold transition"
+                disabled={loading}
+                className="w-full h-12 rounded-lg bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Create account
+                {loading
+                  ? "Creating account..."
+                  : "Create account"}
               </button>
             </form>
 
